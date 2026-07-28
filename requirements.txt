@@ -1,0 +1,8 @@
+# 用 singularity SIF (CADLLM.sif) 时不需要 pip install。
+# 这个文件仅供参考核心依赖版本。
+torch>=2.0
+transformers>=4.36
+peft>=0.7
+accelerate>=0.25
+trimesh
+numpy

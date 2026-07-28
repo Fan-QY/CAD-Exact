@@ -1,0 +1,131 @@
+Bootstrap: docker
+From: pytorch/pytorch:2.7.0-cuda12.8-cudnn9-devel
+
+# CADLLM2 -- CAD-Exact runtime for both Hopper (sm_90) and Blackwell (sm_120).
+#
+# The previous image (CADLLM.sif, torch 2.5.1+cu124) cannot address the sm_120
+# cards in gpu_blackwell: its build carries SASS for sm_50..sm_90 and no PTX, so even a
+# matmul dies with "no kernel image is available". Those four cards sit idle while
+# gpu_h200 is booked days out, which is the whole reason for this rebuild.
+#
+# Deliberately minimal change: ONLY the CUDA stack moves. transformers and peft
+# are pinned to exactly what the old image had (4.47.1 / 0.13.2), because the
+# training scripts pass `evaluation_strategy`, which later transformers removed --
+# and because every arm of the rebuttal table must share one software stack. A
+# model trained under flash-attn and another under sdpa are not a clean
+# comparison, so the intended use is: rebuild once, then run ALL arms here.
+#
+# Build (fakeroot is enough; no sudo):
+#   singularity build --fakeroot cadllm2.sif container/cadllm2.def
+#
+# Verify on both card types before trusting it:
+#   singularity exec --nv cadllm2.sif python container/verify.py
+
+%post
+    set -eux
+    export DEBIAN_FRONTEND=noninteractive
+
+    # Build both architectures we can actually reach: sm_90 for the H200s in
+    # gpu_h200, sm_120 for the Blackwells in gpu_blackwell. +PTX so a future card is
+    # a slow first run rather than a hard failure -- the exact trap the old image
+    # fell into by shipping no PTX at all.
+    export TORCH_CUDA_ARCH_LIST="9.0;12.0+PTX"
+    export MAX_JOBS=8
+    export FORCE_CUDA=1
+
+    apt-get update
+    apt-get install -y --no-install-recommends \
+        git build-essential ninja-build libgl1 libglib2.0-0 libx11-6 libxrender1 libxext6
+    rm -rf /var/lib/apt/lists/*
+
+    python -m pip install --no-cache-dir --upgrade pip
+
+    # ---- training stack, current versions --------------------------------
+    # The training scripts no longer hardcode renamed Trainer parameters:
+    # local/run_setup.py picks eval_strategy vs evaluation_strategy and
+    # processing_class vs tokenizer by inspecting the installed class, so this
+    # can float without editing five scripts.
+    pip install --no-cache-dir \
+        "transformers" \
+        "peft" \
+        "accelerate" \
+        "safetensors"
+
+    # ---- data path -------------------------------------------------------
+    # pyarrow is here rather than bolted on with PYTHONPATH as it was for the old
+    # image. open3d >= 0.19 is required: 0.18 caps numpy below 2.0 and torch 2.7
+    # ships against numpy 2.
+    pip install --no-cache-dir \
+        "numpy>=2.0,<3" \
+        "pyarrow==24.0.0" \
+        "trimesh" \
+        "open3d>=0.19" \
+        "scipy" \
+        "scikit-image" \
+        "h5py" \
+        "striprtf" \
+        "tqdm"
+
+    # ---- CAD kernel (inference + evaluation only) ------------------------
+    # Held at the old image's geometry stack on purpose. cadquery executes both
+    # the ground-truth programs and the predictions, so a different OCCT binding
+    # can change what a program evaluates to -- and every metric in the paper is
+    # computed from those meshes. cadquery-ocp 7.7.2 is the exact binding the old
+    # image carries; cadquery itself was an unreleased 2.5.0.dev0 there, so 2.5.2
+    # is the nearest published build and the pair must be checked before use:
+    #
+    #   python container/compare_cadquery.py --old CADLLM.sif --new CADLLM2.sif
+    #
+    # Training never imports cadquery. If the check shows any drift, run training
+    # here and evaluation in the old image -- that keeps the geometry bit-exact
+    # at no cost.
+    pip install --no-cache-dir "cadquery-ocp==7.7.2" "cadquery==2.5.2"
+
+    # ---- pytorch3d: compiled, must match this torch ----------------------
+    # Only sample_farthest_points is used, and local/data_process.py already has
+    # a pure-torch fallback verified to select identical points. So a failure
+    # here is not fatal -- CAD_FPS_TORCH=1 covers it -- but the compiled kernel
+    # is much faster per sample and this runs on every training example.
+    pip install --no-cache-dir "fvcore" "iopath"
+    pip install --no-cache-dir --no-build-isolation \
+        "git+https://github.com/facebookresearch/pytorch3d.git@stable" \
+        || echo "WARNING: pytorch3d build failed -- run with CAD_FPS_TORCH=1"
+
+    # ---- flash-attn: compiled, sm_120 support is recent ------------------
+    # Same deal: CAD_ATTN=sdpa is a working fallback, and sdpa was measured
+    # running fine on the Blackwell card. Left non-fatal because a flash-attn
+    # source build is long and the most likely step to fail.
+    pip install --no-cache-dir --no-build-isolation "flash-attn>=2.8.0" \
+        || echo "WARNING: flash-attn build failed -- run with CAD_ATTN=sdpa"
+
+    python - <<'PY'
+import importlib, json
+have = {}
+for m in ["torch","torchvision","transformers","peft","accelerate","pyarrow",
+          "numpy","trimesh","open3d","skimage","scipy","cadquery","h5py",
+          "striprtf","pytorch3d","flash_attn"]:
+    try:
+        mod = importlib.import_module(m)
+        have[m] = getattr(mod, "__version__", "ok")
+    except Exception as e:
+        have[m] = f"MISSING ({type(e).__name__})"
+import torch
+have["torch_arch_list"] = torch.cuda.get_arch_list()
+open("/opt/cadllm2_manifest.json","w").write(json.dumps(have, indent=2))
+print(json.dumps(have, indent=2))
+PY
+
+%environment
+    export TOKENIZERS_PARALLELISM=false
+    export PYTHONNOUSERSITE=1
+
+%labels
+    Name CADLLM2
+    Purpose CAD-Exact training on sm_90 and sm_120
+    Torch 2.7.0+cu128
+
+%help
+    CAD-Exact runtime covering H200 (sm_90) and RTX PRO 6000 Blackwell (sm_120).
+    Package inventory: cat /opt/cadllm2_manifest.json
+    If pytorch3d or flash-attn are listed MISSING, set CAD_FPS_TORCH=1 and/or
+    CAD_ATTN=sdpa; both fallbacks are wired into local/ and verified.

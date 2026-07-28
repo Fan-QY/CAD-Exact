@@ -1,0 +1,52 @@
+Bootstrap: localimage
+From: CADLLM2.sif
+
+# Downgrade the transformers stack in CADLLM2 back to what CADLLM.sif carries.
+#
+# Building from the finished image rather than editing cadllm2.def and starting
+# over is deliberate: pytorch3d and flash-attn are compiled in %post, singularity
+# does not cache %post, and re-running those two costs ~30 minutes for a change
+# that touches neither.
+#
+# Why downgrade at all: transformers 5.x renamed the loading-time attribute
+# _tied_weights_keys to all_tied_weights_keys, and CADRecode (local/model.py)
+# defines the old one, so from_pretrained dies before training starts. That is
+# the first breakage of several likely ones -- the custom forward also touches
+# past_key_values.get_seq_length() and splices point embeddings by hand. Chasing
+# them one at a time would change model behaviour for no benefit; the point of
+# this image is CUDA 12.8 for sm_120, nothing else.
+#
+# Pinning to 4.47.1 has a second payoff: it is exactly what the old image runs,
+# so if some arms end up on CADLLM.sif (H200) and others here (Blackwell), the
+# only difference between them is the CUDA stack.
+#
+#   singularity build --fakeroot CADLLM2b.sif container/cadllm2b.def
+
+%post
+    set -eux
+    pip install --no-cache-dir \
+        "transformers==4.47.1" \
+        "peft==0.13.2" \
+        "accelerate==1.2.1" \
+        "tokenizers<0.22"
+
+    python - <<'PY'
+import importlib, json
+have = {}
+for m in ["torch","torchvision","transformers","peft","accelerate","pyarrow",
+          "numpy","trimesh","open3d","skimage","scipy","cadquery","h5py",
+          "striprtf","pytorch3d","flash_attn"]:
+    try:
+        mod = importlib.import_module(m)
+        have[m] = getattr(mod, "__version__", "ok")
+    except Exception as e:
+        have[m] = f"MISSING ({type(e).__name__})"
+open("/opt/cadllm2_manifest.json","w").write(json.dumps(have, indent=2))
+print(json.dumps(have, indent=2))
+PY
+
+%labels
+    Name CADLLM2b
+    Purpose CAD-Exact on sm_90 and sm_120, transformers pinned to the old image
+    Torch 2.7.0+cu128
+    Transformers 4.47.1
