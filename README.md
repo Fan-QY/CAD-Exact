@@ -4,7 +4,7 @@ Anonymous release for the CAD-Exact submission: **inference and evaluation** cod
 for parametric CAD code generation from point clouds, over the four solid-modeling
 operations **extrude, revolve, sweep, loft**, plus the final model weights.
 
-Training code is not part of this release. The published weights are the final
+Training code is not part of this release. The released weights are the final
 model of the four-stage chain (extrude → revolve → sweep → loft), already
 LoRA-merged, so nothing has to be trained or fused to reproduce the numbers.
 
@@ -41,10 +41,12 @@ LoRA-merged, so nothing has to be trained or fused to reproduce the numbers.
 
 ## Weights
 
-<!-- WEIGHTS_LINK -->
-**Download:** see `WEIGHTS.md`.
+The final fused model (2.9 GB) is hosted outside this repository.
 
-The archive unpacks into the layout the scripts expect:
+<!-- WEIGHTS_LINK: replace this line with the download URL -->
+**Download:** _link to be added._
+
+It unpacks into the layout the scripts expect:
 
 ```
 $RUNS/
