@@ -4,9 +4,23 @@ Anonymous release for the CAD-Exact submission: **inference and evaluation** cod
 for parametric CAD code generation from point clouds, over the four solid-modeling
 operations **extrude, revolve, sweep, loft**, plus the final model weights.
 
-Training code is not part of this release. The released weights are the final
-model of the four-stage chain (extrude → revolve → sweep → loft), already
-LoRA-merged, so nothing has to be trained or fused to reproduce the numbers.
+Training code is not part of this release. Two fused checkpoints are released
+as the reproducibility artefact:
+
+- **`cad-exact-joint/checkpoint-187500-fused`** — a single model trained on a
+  balanced four-operation mixture (≈ 25% each of extrude / revolve / sweep /
+  loft); reproduces the **joint row** of the main results table across all
+  four operation columns, including the PEM-eq$_{10}$ column and the
+  noise-robustness (Appendix F.5) and multi-operation (Appendix F.6)
+  diagnostics.
+- **`cad-exact-loft/checkpoint-46875-fused`** — the terminal (stage-4) model
+  of the staged chain extrude → revolve → sweep → loft; reproduces the
+  **stage-4 (loft) row** of the main table on the loft column.
+
+Both checkpoints are already LoRA-merged and bundle the FourierPointEncoder
+weights inside their `model.safetensors`, so nothing has to be trained or
+fused to reproduce the numbers. Stages 1–3 of the staged chain (extrude,
+revolve, sweep) will be released upon acceptance.
 
 ## Qualitative results
 
@@ -65,27 +79,54 @@ Vector versions of the same figures are in `figures/` as `qualitative_<op>.pdf`.
 
 ## Weights
 
-The final fused model (2.9 GB) is hosted outside this repository.
+The two fused checkpoints (2.9 GB each) are hosted on Zenodo.
 
-<!-- WEIGHTS_LINK: replace this line with the download URL -->
-**Download:** _link to be added._
+<!-- WEIGHTS_LINK: replace this line with the Zenodo DOI/URL -->
+**Download:** _Zenodo DOI to be added; the anonymous preview URL will be
+posted in the OpenReview discussion thread for the reviewers._
 
-It unpacks into the layout the scripts expect:
+The archive contains two tarballs plus a `README_weights.md` and `LICENSE`:
+
+```
+cad-exact-joint.tar       # cad-exact-joint/checkpoint-187500-fused/
+cad-exact-loft.tar        # cad-exact-loft/checkpoint-46875-fused/
+README_weights.md
+LICENSE                   # CC-BY-NC-4.0
+```
+
+After extraction into `$RUNS` (anywhere on disk — pick a scratch dir with
+~6 GB free), the layout matches what `scripts/infer_and_eval_slurm.sh`
+expects:
 
 ```
 $RUNS/
+├── cad-exact-joint/
+│   └── checkpoint-187500-fused/
+│       ├── config.json
+│       ├── model.safetensors
+│       ├── fusion_provenance.json    # which stage chain produced these weights
+│       ├── generation_config.json
+│       └── tokenizer.json / tokenizer_config.json / vocab.json / merges.txt / ...
 └── cad-exact-loft/
     └── checkpoint-46875-fused/
-        ├── config.json
-        ├── model.safetensors
-        ├── tokenizer.json
-        ├── fusion_provenance.json     # which stage chain produced these weights
-        └── ...
+        └── (same file layout)
 ```
 
 `scripts/infer_and_eval_slurm.sh` addresses a model as
-`$RUNS/cad-exact-$STAGE/checkpoint-$CKPT-fused`, so the released model is
-`STAGE=loft CKPT=46875`.
+`$RUNS/cad-exact-$STAGE/checkpoint-$CKPT-fused`:
+
+| Model | `STAGE` | `CKPT` |
+|---|---|---|
+| Joint (4-op mixture) | `joint` | `187500` |
+| Staged, terminal (loft) | `loft` | `46875` |
+
+### Verifying the fuse
+
+Each fused directory carries a `fusion_provenance.json` recording which LoRA
+adapter was merged and the SHA-256 of a single probe key on the base model
+*before* the merge (`base_probe_sha256_32`). The code release packs
+`tools/verify_fusion.py` (upon acceptance) to replay that check against a
+local base model.
 
 ## Test data
 
