@@ -81,9 +81,14 @@ Vector versions of the same figures are in `figures/` as `qualitative_<op>.pdf`.
 
 The two fused checkpoints (2.9 GB each) are hosted on Zenodo.
 
-<!-- WEIGHTS_LINK: replace this line with the Zenodo DOI/URL -->
-**Download:** _Zenodo DOI to be added; the anonymous preview URL will be
-posted in the OpenReview discussion thread for the reviewers._
+<!-- WEIGHTS_LINK: Zenodo DOI assigned 2026-11-12, anonymous preview -->
+**Download:** <https://doi.org/10.5281/zenodo.24158668> (this release, v1.0-iclr2027-rebuttal)
+or <https://doi.org/10.5281/zenodo.24158667> (concept DOI — always resolves to the latest version).
+
+The Zenodo record contains two 2.9 GB tarballs (`cad-exact-joint.tar`
+and `cad-exact-loft.tar`), plus `README_weights.md` and `LICENSE`
+(CC-BY-NC-4.0). Extract both tarballs side-by-side into `$RUNS` to match
+the layout the scripts expect.
 
 The archive contains two tarballs plus a `README_weights.md` and `LICENSE`:
 
