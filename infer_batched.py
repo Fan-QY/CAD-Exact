@@ -213,11 +213,18 @@ def get_args():
                              "cloud. Training resamples every visit, so the model is meant "
                              "to be invariant to it; varying this measures how much of the "
                              "prediction is determined by the sample rather than the shape.")
+    parser.add_argument('--pc_resample', default=0, type=int,
+                        help="draw this many points from a .npy cloud, seeded by --pc_seed, "
+                             "before farthest-point sampling. 0 disables it. Non-zero is what "
+                             "makes repeated runs differ, i.e. what best-of-N needs.")
     parser.add_argument('--max_new_tokens', default=1024, type=int)
+    parser.add_argument('--no_mesh', action='store_true',
+                        help='write only <id>.txt; skip exec/tessellate/STL (PEM-only runs)')
     return parser.parse_args()
 
 
-def load_point_cloud(datapath: str, n_points: int, seed: int = 42) -> np.ndarray:
+def load_point_cloud(datapath: str, n_points: int, seed: int = 42,
+                     resample: int = 0) -> np.ndarray:
     """Reduce one sample to an n_points cloud. Raises on failure.
 
     Two input forms. A mesh is scaled by 1e-3 first -- that is what turns the
@@ -236,6 +243,19 @@ def load_point_cloud(datapath: str, n_points: int, seed: int = 42) -> np.ndarray
             raise ValueError("non-finite coordinates in point cloud")
         if len(pts) < n_points:
             raise ValueError(f"only {len(pts)} points, need {n_points}")
+        # sample_farthest_points starts from index 0 and consumes no numpy
+        # randomness, so seeding alone leaves the 256-point cloud bit-identical
+        # across seeds -- best-of-N built on --pc_seed silently returns N copies
+        # of one prediction. Drawing a seeded subset of the input first is what
+        # actually varies it, and it is also what CAD-Recode's test-time
+        # sampling does: "each from a different sampling of the input point
+        # cloud". resample=0 keeps the deterministic single-candidate path.
+        if resample:
+            rng = np.random.RandomState(seed)
+            k = min(resample, len(pts))
+            if k < n_points:
+                raise ValueError(f"resample {k} below n_points {n_points}")
+            pts = pts[rng.choice(len(pts), size=k, replace=False)]
         np.random.seed(seed)
         _, ids = sample_farthest_points(torch.tensor(pts).unsqueeze(0), K=n_points)
         return np.asarray(pts[ids[0].numpy()])
@@ -311,7 +331,8 @@ def main():
         valid_pcs = []
         for sample in batch_samples:
             try:
-                pc = load_point_cloud(mesh_map[sample], n_points, args.pc_seed)
+                pc = load_point_cloud(mesh_map[sample], n_points, args.pc_seed,
+                                      args.pc_resample)
                 valid_samples.append(sample)
                 valid_pcs.append(pc)
             except Exception as e:
@@ -354,6 +375,15 @@ def main():
 
             with open(os.path.join(savesampledir, sample + '.txt'), "w", encoding="utf-8") as f:
                 f.write(py_string)
+
+            if args.no_mesh:
+                # PEM reads the emitted program, not the solid. Executing and
+                # tessellating is what the run spends its wall clock on: on the
+                # loft split the GPU sits at 21% while OCCT meshes 32 smooth
+                # lofts per batch, so skipping it turns a 45-minute run into a
+                # decode-bound one. Nothing that needs a mesh (validity, CD,
+                # TVF, IoU) can be scored from a --no_mesh run.
+                continue
 
             try:
                 local_ns: Dict[str, Any] = {}
