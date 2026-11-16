@@ -86,13 +86,13 @@ Reviewer 99VQ (W4) noted CAD-Exact's substantially worse (higher) median Chamfer
 
 - **§C Table 7 (per-operation stats)**: row order aligned to Extrude / Revolve / Sweep / Loft, matching Tables 3 and 4.
 
-- **§D.1 LoRA parameterisation**: eq. (1) (appendix D) updated from W' = W + BA to **W' = W + (α/r)·BA** with α = 128 explicitly stated (α/r = 2); staged-arm merge formula updated correspondingly.
+- **§D LoRA parameterisation**: eq. (1) (appendix D) updated from W' = W + BA to **W' = W + (α/r)·BA** with α = 128 explicitly stated (α/r = 2); staged-arm merge formula updated correspondingly.
 
-- **§D.1 Optimization paragraph**: corrected the hardware/batch decomposition to match the released trainer-state records - the joint arm used per-device batch 32 × gradient accumulation 1 on 2 GPUs, and each staged stage used per-device batch 16 × gradient accumulation 4 on 1 GPU (both yielding effective batch 64, as previously stated). The hardware line was updated from "4 × A100 80 GB" to "NVIDIA H100 and H200 80-141 GB GPUs", which matches the actual runs.
+- **§D Optimization paragraph**: corrected the hardware/batch decomposition to match the released trainer-state records - the joint arm used per-device batch 32 × gradient accumulation 1 on 2 GPUs, and each staged stage used per-device batch 16 × gradient accumulation 4 on 1 GPU (both yielding effective batch 64, as previously stated). The hardware line was updated from "4 × A100 80 GB" to "NVIDIA H100 and H200 80-141 GB GPUs", which matches the actual runs.
 
 - **§B validity-gate narrative** (correction to a data-quality claim): the earlier submission stated that watertightness was enforced at generation time; **in fact watertightness is audited post hoc and flagged per sample (Appendix C.6)**, while the generation-time validity gate is execution plus positive volume (shared) and a `trimesh` read-back (composed pipelines only). Audit result on 200 samples per operation: 91.0% extrude, 99.0% revolve, 85.0% sweep, 100.0% loft (Appendix C.6). The algorithm pseudocode has been updated accordingly.
 
-- **§B.2 pseudocode** (the following corrections to match the released code):
+- **§B pseudocode (Algorithms 1–3)** (the following corrections to match the released code):
   - Alg. 1 line 6 (Extrude auto-translate): per-axis conditional and max(1, ·) clamp added.
   - Alg. 3 line 5 (degenerate range): literals mapped to a constant in [t_min, t_max] rather than rejected.
   - Alg. 3 lines 1 and 10 (sentinel Z): explicitly restricted to the composed pipelines (loft/revolve/sweep); the extrude in-place rewrite does not apply the mask.
@@ -110,7 +110,7 @@ Reviewer 99VQ (W4) noted CAD-Exact's substantially worse (higher) median Chamfer
 
 **Reproducibility artefacts (anonymous preview, available during the discussion period)**
 
-- **Code:** <https://anonymous.4open.science/r/CAD-Exact-5707> (updated 2026-11-12)
+- **Code:** <https://anonymous.4open.science/r/CAD-Exact-5707> (updated 2026-11-16)
 - **Weights and test splits:** <https://doi.org/10.5281/zenodo.24158668> (CC-BY-NC-4.0; concept DOI <https://doi.org/10.5281/zenodo.24158667>)
   - `cad-exact-joint.tar` -> `cad-exact-joint/checkpoint-187500-fused`: reproduces the joint row of Table 3 (all four operation columns, including PEM-eq$_{10}$, and the Appendix F.5 / F.6 / F.7 analyses).
   - `cad-exact-loft.tar` -> `cad-exact-loft/checkpoint-46875-fused`: reproduces the stage-4 (loft) row of Table 3.
