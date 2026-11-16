@@ -27,7 +27,7 @@ Reviewer tDVn (W2) suggested an exact-match variant that is invariant to literal
 
 Reviewer KAf1 (W1) asked for a noise-level sweep on a subset to characterize robustness to input perturbations.
 
-- **§F.5**: zero-shot evaluation of CAD-Exact (joint) on a 500-sample balanced subset under isotropic Gaussian input noise at σ ∈ {0.001, 0.002, 0.005, 0.01, 0.02} ≈ 1-20 grid levels. Validity drops from 94.2% to 51.0%, aggregate TVF@5% from 73.6% to 7.6%, strict PEM from 4/500 to 0/500. The rPEM margin over a shuffled-reference baseline narrows from +26.5 pp on clean inputs to +4.2 pp at σ = 0.02 (endpoints reported).
+- **§F.5**: zero-shot evaluation of CAD-Exact (joint) on a 500-sample balanced subset under isotropic Gaussian input noise at σ ∈ {0.001, 0.002, 0.005, 0.01, 0.02} ≈ 1-20 grid levels. Validity drops from 94.2% to 51.0%, aggregate TVF@5% from 73.6% to 7.6%, strict PEM from 4/500 to 0/500. The rPEM margin over a shuffled-reference baseline remains positive across the sweep (+26.5 pp on clean inputs, +4.2 pp at σ = 0.02).
 - **§6 (Limitations)**: cites the F.5 numbers.
 
 **Addressing KAf1 (W2, Q3) and 99VQ (scope question) - multi-operation scope**
