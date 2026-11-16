@@ -110,7 +110,7 @@ Reviewer 99VQ (W4) noted CAD-Exact's substantially worse (higher) median Chamfer
 
 **Reproducibility artefacts (anonymous preview, available during the discussion period)**
 
-- **Code:** <https://anonymous.4open.science/r/CAD-Exact-5707> (updated 2026-11-16)
+- **Code:** <https://anonymous.4open.science/r/CAD-Exact-5707> (updated 2026-11-12)
 - **Weights and test splits:** <https://doi.org/10.5281/zenodo.24158668> (CC-BY-NC-4.0; concept DOI <https://doi.org/10.5281/zenodo.24158667>)
   - `cad-exact-joint.tar` -> `cad-exact-joint/checkpoint-187500-fused`: reproduces the joint row of Table 3 (all four operation columns, including PEM-eq$_{10}$, and the Appendix F.5 / F.6 / F.7 analyses).
   - `cad-exact-loft.tar` -> `cad-exact-loft/checkpoint-46875-fused`: reproduces the stage-4 (loft) row of Table 3.
